@@ -1,0 +1,134 @@
+# ChainView.py
+
+from web3 import Web3
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from typing import Dict, Any, List
+
+class ChainView:
+    def __init__(self, provider_url: str):
+        self.web3 = Web3(Web3.HTTPProvider(provider_url))
+        self.data = pd.DataFrame()
+
+    def fetch_transaction(self, tx_hash: str) -> Dict[str, Any]:
+        """
+        Fetch details for a specific transaction using its hash.
+        """
+        transaction = self.web3.eth.getTransaction(tx_hash)
+        return dict(transaction)
+
+    def fetch_block_details(self, block_number: int):
+        """
+        Fetch details for a specific block using its number.
+        """
+        block = self.web3.eth.getBlock(block_number, full_transactions=True)
+        transactions = [dict(tx) for tx in block.transactions]
+        
+        block_details = {
+            'block_number': block.number,
+            'timestamp': block.timestamp,
+            'transactions': transactions,
+            'transaction_count': len(transactions),
+            'gas_used': block.gasUsed,
+            'gas_limit': block.gasLimit,
+            'size': block.size
+        }
+        
+        self.data = pd.DataFrame(transactions)
+        return block_details
+
+    def display_block(self, block_details: Dict[str, Any]):
+        """
+        Display details of a block.
+        """
+        print(f"Block Number: {block_details['block_number']}")
+        print(f"Timestamp: {block_details['timestamp']}")
+        print(f"Number of Transactions: {block_details['transaction_count']}")
+        print(f"Gas Used: {block_details['gas_used']}")
+        print(f"Gas Limit: {block_details['gas_limit']}")
+        print(f"Block Size: {block_details['size']}")
+        print("Transactions:")
+        for tx in block_details['transactions']:
+            print(f"  Tx Hash: {tx['hash'].hex()}")
+            print(f"  From: {tx['from']}")
+            print(f"  To: {tx['to']}")
+            print(f"  Value: {self.web3.fromWei(tx['value'], 'ether')} ETH")
+            print("------")
+
+    def analyze_block_statistics(self):
+        """
+        Analyze statistics related to blockchain blocks.
+        """
+        if self.data.empty:
+            raise ValueError("No data available for analysis.")
+        
+        gas_used = self.data['gas'].sum()
+        average_gas_price = self.data['gasPrice'].mean()
+        total_value_transferred = self.data['value'].apply(lambda x: self.web3.fromWei(x, 'ether')).sum()
+        
+        print("Block Statistics:")
+        print(f"Total Gas Used: {gas_used}")
+        print(f"Average Gas Price: {self.web3.fromWei(average_gas_price, 'gwei')} Gwei")
+        print(f"Total Value Transferred: {total_value_transferred} ETH")
+
+    def plot_transaction_values(self):
+        """
+        Plot the distribution of transaction values in the block.
+        """
+        if self.data.empty:
+            raise ValueError("No data available for plotting.")
+        
+        self.data['value_ether'] = self.data['value'].apply(lambda x: self.web3.fromWei(x, 'ether'))
+        plt.figure(figsize=(10, 6))
+        self.data['value_ether'].plot(kind='hist', bins=50, color='skyblue')
+        plt.xlabel('Transaction Value (ETH)')
+        plt.ylabel('Frequency')
+        plt.title('Distribution of Transaction Values')
+        plt.grid(True)
+        plt.show()
+
+    def generate_report(self, block_details: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Generate a comprehensive report on the block.
+        """
+        if self.data.empty:
+            raise ValueError("No data available for reporting.")
+        
+        report = {
+            'block_number': block_details['block_number'],
+            'timestamp': block_details['timestamp'],
+            'transaction_count': block_details['transaction_count'],
+            'gas_used': block_details['gas_used'],
+            'gas_limit': block_details['gas_limit'],
+            'size': block_details['size'],
+            'total_gas_used': self.data['gas'].sum(),
+            'average_gas_price': self.web3.fromWei(self.data['gasPrice'].mean(), 'gwei'),
+            'total_value_transferred': self.data['value'].apply(lambda x: self.web3.fromWei(x, 'ether')).sum()
+        }
+        
+        return report
+
+# Example usage
+if __name__ == "__main__":
+    provider_url = 'https://mainnet.infura.io/v3/YOUR_INFURA_PROJECT_ID'
+    chain_view = ChainView(provider_url)
+    
+    # Fetch details for a specific block
+    block_number = 12345678
+    block_details = chain_view.fetch_block_details(block_number)
+    
+    # Display block details
+    chain_view.display_block(block_details)
+    
+    # Analyze block statistics
+    chain_view.analyze_block_statistics()
+    
+    # Plot transaction values
+    chain_view.plot_transaction_values()
+    
+    # Generate and print a report
+    report = chain_view.generate_report(block_details)
+    print("Block Report:")
+    for key, value in report.items():
+        print(f"{key}: {value}")
